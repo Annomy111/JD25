@@ -1,11 +1,17 @@
-run = "cd backend && npm install && npm start"
-modules = ["nodejs-20"]
+run = "chmod +x start.sh && ./start.sh"
+modules = ["nodejs-18:v3-20230608-f4cd419"]
+
 [nix]
-channel = "stable-24_05"
+channel = "stable-23_11"
 
 [deployment]
-run = ["sh", "-c", "cd backend && npm install && npm start"]
+run = ["sh", "-c", "./start.sh"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
 
 [[ports]]
 localPort = 5000
-externalPort = 80
+externalPort = 5000
