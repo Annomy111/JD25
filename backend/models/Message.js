@@ -15,6 +15,10 @@ const messageSchema = new mongoose.Schema({
     required: true,
     default: 'general'
   },
+  readBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   timestamp: {
     type: Date,
     default: Date.now

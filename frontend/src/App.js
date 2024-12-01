@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Dashboard from './pages/Dashboard';
 import Volunteers from './pages/Volunteers';
 import Events from './pages/Events';
+import Chat from './pages/Chat';
+import Canvassing from './pages/Canvassing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Layout from './components/Layout';
@@ -40,6 +42,26 @@ function App() {
             <PrivateRoute>
               <Layout>
                 <Events />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/chat"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <Chat />
+              </Layout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/canvassing"
+          element={
+            <PrivateRoute>
+              <Layout>
+                <Canvassing />
               </Layout>
             </PrivateRoute>
           }
