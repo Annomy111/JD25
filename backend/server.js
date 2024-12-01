@@ -34,6 +34,11 @@ mongoose.connect(process.env.MONGODB_URI, {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/volunteers', require('./routes/volunteers'));
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to the Campaign Manager API' });
+});
+
 // Socket.io Middleware für Auth
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
