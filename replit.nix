@@ -1,14 +1,8 @@
-{
-  description = "Node.js environment";
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-  };
-  outputs = { self, nixpkgs }: {
-    devShell = nixpkgs.legacyPackages.x86_64-linux.mkShell {
-      buildInputs = with nixpkgs.legacyPackages.x86_64-linux; [
-        nodejs-20_x
-        nodePackages.npm
-      ];
-    };
-  };
+{ pkgs }: {
+  deps = [
+    pkgs.nodejs-18_x
+    pkgs.nodePackages.typescript-language-server
+    pkgs.yarn
+    pkgs.replitPackages.jest
+  ];
 }
