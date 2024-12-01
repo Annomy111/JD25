@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: campaign-manager-backend
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node server.js
+    envVars:
+      - key: MONGODB_URI
+        value: mongodb+srv://jd25user:tBwwU7yUcJoJImTZ@cluster0.3lg9t.mongodb.net/jdcampaignmanager
+      - key: JWT_SECRET
+        value: mein_geheimer_schluessel_123
+      - key: PORT
+        value: 5000
+
+  - type: web
+    name: campaign-manager-frontend
+    env: node
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://campaign-manager-backend.onrender.com
