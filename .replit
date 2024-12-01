@@ -1,11 +1,11 @@
-run = "chmod +x start.sh && ./start.sh"
+run = "bash start.sh"
 modules = ["nodejs-18:v3-20230608-f4cd419"]
 
 [nix]
 channel = "stable-23_11"
 
 [deployment]
-run = ["sh", "-c", "./start.sh"]
+run = ["sh", "-c", "bash start.sh"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
