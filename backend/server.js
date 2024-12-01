@@ -17,99 +17,134 @@ const io = socketio(server, {
   }
 });
 
-// Middleware
+// Online users tracking
+const onlineUsers = new Map();
+
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch((error) => console.error('MongoDB connection error:', error));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/volunteers', require('./routes/volunteers'));
+app.use('/api/events', require('./routes/events'));
 
-// Root route
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to the Campaign Manager API' });
-});
-
-// Socket.io Middleware für Auth
-io.use((socket, next) => {
-  const token = socket.handshake.auth.token;
-  if (!token) {
-    return next(new Error('Authentication error'));
-  }
-
+// Socket Authentication Middleware
+io.use(async (socket, next) => {
   try {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+      return next(new Error('Authentication error'));
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.userId = decoded.userId;
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return next(new Error('User not found'));
+    }
+
+    socket.user = user;
     next();
   } catch (err) {
     next(new Error('Authentication error'));
   }
 });
 
-// Socket.io Connection Handling
+// Socket Connection Handling
 io.on('connection', async (socket) => {
-  console.log('New client connected:', socket.userId);
+  console.log('User connected:', socket.user.name);
+  
+  // Add user to online users
+  onlineUsers.set(socket.user._id.toString(), {
+    socketId: socket.id,
+    user: socket.user
+  });
+  
+  // Broadcast online users
+  io.emit('users:online', Array.from(onlineUsers.values()).map(u => ({
+    _id: u.user._id,
+    name: u.user.name
+  })));
 
-  // Benutzer dem allgemeinen Raum beitreten
+  // Join general room
   socket.join('general');
 
-  // Lade die letzten 50 Nachrichten
+  // Send message history
   try {
     const messages = await Message.find({ room: 'general' })
       .sort({ timestamp: -1 })
       .limit(50)
-      .populate('sender', 'name');
+      .populate('sender', 'name')
+      .populate('readBy', 'name');
+    
     socket.emit('message:history', messages.reverse());
   } catch (error) {
     console.error('Error loading message history:', error);
   }
 
-  // Neue Nachricht empfangen
+  // Handle new messages
   socket.on('message:send', async (data) => {
     try {
-      const user = await User.findById(socket.userId);
       const message = new Message({
-        sender: socket.userId,
+        sender: socket.user._id,
         content: data.content,
-        room: 'general'
+        room: 'general',
+        readBy: [socket.user._id]
       });
+      
       await message.save();
+      const populatedMessage = await Message.findById(message._id)
+        .populate('sender', 'name')
+        .populate('readBy', 'name');
 
-      io.to('general').emit('message:receive', {
-        _id: message._id,
-        content: message.content,
-        sender: {
-          _id: user._id,
-          name: user.name
-        },
-        timestamp: message.timestamp
-      });
+      io.to('general').emit('message:receive', populatedMessage);
     } catch (error) {
-      console.error('Error saving message:', error);
+      console.error('Error sending message:', error);
+      socket.emit('message:error', 'Failed to send message');
     }
   });
 
-  // Benutzer tippt
+  // Handle typing status
   socket.on('typing:start', () => {
-    socket.to('general').emit('typing:update', { userId: socket.userId, isTyping: true });
+    socket.to('general').emit('typing:update', {
+      userId: socket.user._id,
+      name: socket.user.name,
+      isTyping: true
+    });
   });
 
   socket.on('typing:stop', () => {
-    socket.to('general').emit('typing:update', { userId: socket.userId, isTyping: false });
+    socket.to('general').emit('typing:update', {
+      userId: socket.user._id,
+      name: socket.user.name,
+      isTyping: false
+    });
   });
 
-  // Disconnect
+  // Handle message read status
+  socket.on('message:read', async ({ messageId }) => {
+    try {
+      const message = await Message.findById(messageId);
+      if (message && !message.readBy.includes(socket.user._id)) {
+        message.readBy.push(socket.user._id);
+        await message.save();
+        io.to('general').emit('message:updated', {
+          messageId,
+          readBy: message.readBy
+        });
+      }
+    } catch (error) {
+      console.error('Error updating read status:', error);
+    }
+  });
+
+  // Handle disconnect
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.userId);
+    console.log('User disconnected:', socket.user.name);
+    onlineUsers.delete(socket.user._id.toString());
+    io.emit('users:online', Array.from(onlineUsers.values()).map(u => ({
+      _id: u.user._id,
+      name: u.user.name
+    })));
   });
 });
 
