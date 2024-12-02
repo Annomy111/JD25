@@ -11,12 +11,13 @@ services:
         value: mein_geheimer_schluessel_123
       - key: PORT
         value: 5000
+      - key: FRONTEND_URL
+        value: https://campaign-manager-frontend-8c0m.onrender.com
 
-  - type: web
+  - type: static
     name: campaign-manager-frontend
-    env: node
     buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && npm start
+    publishDir: frontend/build
     envVars:
       - key: REACT_APP_API_URL
-        value: https://campaign-manager-backend.onrender.com
+        value: https://campaign-manager-backend-6lv7.onrender.com
