@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Volunteers from './pages/Volunteers';
 import Events from './pages/Events';
@@ -10,65 +10,79 @@ import Register from './pages/Register';
 import Layout from './components/Layout';
 import PrivateRoute from './components/PrivateRoute';
 
+const router = createBrowserRouter([
+  {
+    path: "/login",
+    element: <Login />,
+  },
+  {
+    path: "/register",
+    element: <Register />,
+  },
+  {
+    path: "/",
+    element: (
+      <PrivateRoute>
+        <Layout>
+          <Dashboard />
+        </Layout>
+      </PrivateRoute>
+    ),
+  },
+  {
+    path: "/volunteers",
+    element: (
+      <PrivateRoute>
+        <Layout>
+          <Volunteers />
+        </Layout>
+      </PrivateRoute>
+    ),
+  },
+  {
+    path: "/events",
+    element: (
+      <PrivateRoute>
+        <Layout>
+          <Events />
+        </Layout>
+      </PrivateRoute>
+    ),
+  },
+  {
+    path: "/chat",
+    element: (
+      <PrivateRoute>
+        <Layout>
+          <Chat />
+        </Layout>
+      </PrivateRoute>
+    ),
+  },
+  {
+    path: "/canvassing",
+    element: (
+      <PrivateRoute>
+        <Layout>
+          <Canvassing />
+        </Layout>
+      </PrivateRoute>
+    ),
+  },
+  {
+    path: "*",
+    element: <Navigate to="/" replace />,
+  },
+], {
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true
+  }
+});
+
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route
-          path="/"
-          element={
-            <PrivateRoute>
-              <Layout>
-                <Dashboard />
-              </Layout>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/volunteers"
-          element={
-            <PrivateRoute>
-              <Layout>
-                <Volunteers />
-              </Layout>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/events"
-          element={
-            <PrivateRoute>
-              <Layout>
-                <Events />
-              </Layout>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/chat"
-          element={
-            <PrivateRoute>
-              <Layout>
-                <Chat />
-              </Layout>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/canvassing"
-          element={
-            <PrivateRoute>
-              <Layout>
-                <Canvassing />
-              </Layout>
-            </PrivateRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+    <RouterProvider router={router} />
   );
 }
 
