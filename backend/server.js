@@ -12,15 +12,19 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST']
+    origin: ['https://campaign-manager-frontend-8c0m.onrender.com', 'http://localhost:3000'],
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
 // Online users tracking
 const onlineUsers = new Map();
 
-app.use(cors());
+app.use(cors({
+  origin: ['https://campaign-manager-frontend-8c0m.onrender.com', 'http://localhost:3000'],
+  credentials: true
+}));
 app.use(express.json());
 
 // MongoDB Connection
