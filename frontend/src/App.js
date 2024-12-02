@@ -1,5 +1,5 @@
 import React from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Volunteers from './pages/Volunteers';
 import Events from './pages/Events';
