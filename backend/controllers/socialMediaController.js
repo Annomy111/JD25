@@ -1,75 +1,144 @@
 const SocialAccount = require('../models/socialAccount');
 const axios = require('axios');
 
-class SocialMediaController {
-  async shareContent(userId, content, platforms) {
-    try {
-      const results = [];
-      const accounts = await SocialAccount.find({
-        userId,
-        provider: { $in: platforms }
-      });
-
-      for (const account of accounts) {
+const socialMediaController = {
+    getMetrics: async (req, res) => {
         try {
-          const result = await this.shareToProvider(account, content);
-          results.push({
-            platform: account.provider,
-            success: true,
-            postId: result.id
-          });
+            const accounts = await SocialAccount.find({ userId: req.user.id });
+            const metrics = {
+                twitter: {
+                    followers: 0,
+                    engagement: 0,
+                    posts: 0
+                },
+                facebook: {
+                    followers: 0,
+                    engagement: 0,
+                    posts: 0
+                }
+            };
+
+            for (const account of accounts) {
+                if (account.provider === 'twitter') {
+                    try {
+                        const twitterMetrics = await socialMediaController.getTwitterMetrics(account);
+                        metrics.twitter = { ...metrics.twitter, ...twitterMetrics };
+                    } catch (error) {
+                        console.error('Error fetching Twitter metrics:', error);
+                    }
+                } else if (account.provider === 'facebook') {
+                    try {
+                        const facebookMetrics = await socialMediaController.getFacebookMetrics(account);
+                        metrics.facebook = { ...metrics.facebook, ...facebookMetrics };
+                    } catch (error) {
+                        console.error('Error fetching Facebook metrics:', error);
+                    }
+                }
+            }
+
+            res.json({ success: true, metrics });
         } catch (error) {
-          results.push({
-            platform: account.provider,
-            success: false,
-            error: error.message
-          });
+            console.error('Error in getMetrics:', error);
+            res.status(500).json({ success: false, error: error.message });
         }
-      }
+    },
 
-      return results;
-    } catch (error) {
-      throw error;
-    }
-  }
+    shareToTwitter: async (req, res) => {
+        try {
+            const { content } = req.body;
+            const account = await SocialAccount.findOne({
+                userId: req.user.id,
+                provider: 'twitter'
+            });
 
-  async shareToProvider(account, content) {
-    switch (account.provider) {
-      case 'facebook':
-        return this.shareToFacebook(account, content);
-      case 'twitter':
-        return this.shareToTwitter(account, content);
-      default:
-        throw new Error(`Unsupported platform: ${account.provider}`);
-    }
-  }
+            if (!account) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: 'Twitter account not connected' 
+                });
+            }
 
-  async shareToFacebook(account, content) {
-    try {
-      const response = await axios.post(
-        `https://graph.facebook.com/v12.0/me/feed`,
-        {
-          message: content.text,
-          link: content.url,
-          access_token: account.accessToken
+            const result = await socialMediaController.postToTwitter(account, content);
+            res.json({ success: true, postId: result.id });
+        } catch (error) {
+            console.error('Error in shareToTwitter:', error);
+            res.status(500).json({ success: false, error: error.message });
         }
-      );
-      return response.data;
-    } catch (error) {
-      throw new Error(`Facebook sharing failed: ${error.message}`);
-    }
-  }
+    },
 
-  async shareToTwitter(account, content) {
-    try {
-      // Implement Twitter API v2 posting
-      // Note: Twitter API implementation would go here
-      // This is a placeholder for the actual implementation
-      return { id: 'twitter-post-id' };
-    } catch (error) {
-      throw new Error(`Twitter sharing failed: ${error.message}`);
-    }
-  }
-}
+    shareToFacebook: async (req, res) => {
+        try {
+            const { content } = req.body;
+            const account = await SocialAccount.findOne({
+                userId: req.user.id,
+                provider: 'facebook'
+            });
 
-module.exports = new SocialMediaController();
+            if (!account) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: 'Facebook account not connected' 
+                });
+            }
+
+            const result = await axios.post(
+                `https://graph.facebook.com/v12.0/me/feed`,
+                {
+                    message: content.text,
+                    link: content.url,
+                    access_token: account.accessToken
+                }
+            );
+
+            res.json({ success: true, postId: result.data.id });
+        } catch (error) {
+            console.error('Error in shareToFacebook:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    // Helper methods
+    getTwitterMetrics: async (account) => {
+        // Implementation for Twitter metrics
+        return {
+            followers: 0,
+            engagement: 0,
+            posts: 0
+        };
+    },
+
+    getFacebookMetrics: async (account) => {
+        try {
+            const response = await axios.get(
+                `https://graph.facebook.com/v12.0/me`,
+                {
+                    params: {
+                        fields: 'followers_count,posts{engagement}',
+                        access_token: account.accessToken
+                    }
+                }
+            );
+
+            return {
+                followers: response.data.followers_count || 0,
+                posts: response.data.posts?.data?.length || 0,
+                engagement: response.data.posts?.data?.reduce((sum, post) => 
+                    sum + (post.engagement?.reaction_count || 0), 0) || 0
+            };
+        } catch (error) {
+            console.error('Error fetching Facebook metrics:', error);
+            return {
+                followers: 0,
+                engagement: 0,
+                posts: 0
+            };
+        }
+    },
+
+    postToTwitter: async (account, content) => {
+        // Implementation for Twitter posting
+        return { id: 'twitter-post-id' };
+    }
+};
+
+module.exports = socialMediaController;

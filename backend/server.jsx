@@ -1,16 +1,16 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const mongoose = require('mongoose');
-const socketio = require('socket.io');
-const http = require('http');
-const jwt = require('jsonwebtoken');
-const Message = require('./models/Message');
-const User = require('./models/User');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import mongoose from 'mongoose';
+import { Server } from 'socket.io';
+import { createServer } from 'http';
+import jwt from 'jsonwebtoken';
+import Message from './models/Message.jsx';
+import User from './models/User.jsx';
 
 const app = express();
-const server = http.createServer(app);
-const io = socketio(server, {
+const server = createServer(app);
+const io = new Server(server, {
   cors: {
     origin: ['https://campaign-manager-frontend-8c0m.onrender.com', 'http://localhost:3000', 'http://localhost:3001'],
     methods: ['GET', 'POST'],
@@ -40,13 +40,21 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch((error) => console.error('MongoDB connection error:', error));
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/volunteers', require('./routes/volunteers'));
-app.use('/api/events', require('./routes/events'));
-app.use('/api/asana', require('./routes/asana'));
-app.use('/api/social-media', require('./routes/socialMedia'));
-app.use('/api/calendar', require('./routes/calendarRoutes'));
-app.use('/api/canvassing', require('./routes/canvassing')); // Added Canvassing routes
+import authRoutes from './routes/auth.jsx';
+import volunteersRoutes from './routes/volunteers.jsx';
+import eventsRoutes from './routes/events.jsx';
+import asanaRoutes from './routes/asana.jsx';
+import socialMediaRoutes from './routes/socialMedia.jsx';
+import calendarRoutes from './routes/calendarRoutes.jsx';
+import canvassingRoutes from './routes/canvassing.jsx';
+
+app.use('/api/auth', authRoutes);
+app.use('/api/volunteers', volunteersRoutes);
+app.use('/api/events', eventsRoutes);
+app.use('/api/asana', asanaRoutes);
+app.use('/api/social-media', socialMediaRoutes);
+app.use('/api/calendar', calendarRoutes);
+app.use('/api/canvassing', canvassingRoutes);
 
 // Socket Authentication Middleware
 io.use(async (socket, next) => {
@@ -73,19 +81,16 @@ io.use(async (socket, next) => {
 io.on('connection', async (socket) => {
   console.log('User connected:', socket.user.name);
   
-  // Add user to online users
   onlineUsers.set(socket.user._id.toString(), {
     socketId: socket.id,
     user: socket.user
   });
   
-  // Broadcast online users
   io.emit('users:online', Array.from(onlineUsers.values()).map(u => ({
     _id: u.user._id,
     name: u.user.name
   })));
 
-  // Canvassing updates
   socket.on('canvassing:update', async (data) => {
     try {
       io.emit('canvassing:updated', {
@@ -98,7 +103,6 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Handle chat messages
   socket.on('message:send', async (data) => {
     try {
       const message = new Message({
@@ -120,7 +124,6 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Handle disconnect
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.user.name);
     onlineUsers.delete(socket.user._id.toString());

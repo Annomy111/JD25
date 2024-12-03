@@ -2,57 +2,132 @@ const asana = require('asana');
 const AsanaSync = require('../models/asanaSync');
 const Task = require('../models/task');
 
-class AsanaController {
-  constructor() {
-    this.client = null;
-  }
+// Initialize Asana client
+const client = asana.Client.create({
+  clientId: process.env.ASANA_CLIENT_ID,
+  clientSecret: process.env.ASANA_CLIENT_SECRET,
+  redirectUri: process.env.ASANA_REDIRECT_URI
+});
 
-  async initializeClient(accessToken) {
-    this.client = asana.Client.create().useAccessToken(accessToken);
-  }
+// Get all tasks
+const getTasks = async (req, res) => {
+  try {
+    const asanaSync = await AsanaSync.findOne({ userId: req.user._id });
+    if (!asanaSync) {
+      return res.status(404).json({ message: 'Asana not connected' });
+    }
 
-  async syncTasks(userId) {
-    try {
-      const asanaSync = await AsanaSync.findOne({ userId });
-      if (!asanaSync) throw new Error('Asana sync not configured');
-
-      await this.initializeClient(asanaSync.accessToken);
-
-      // Fetch tasks from Asana
-      const tasks = await this.client.tasks.findAll({
+    // Get tasks from both local DB and Asana
+    const [localTasks, asanaTasks] = await Promise.all([
+      Task.find({ userId: req.user._id }),
+      client.tasks.findAll({
         workspace: asanaSync.asanaWorkspaceId,
         assignee: asanaSync.asanaUserId,
-        completed_since: asanaSync.lastSync
-      });
+        completed_since: 'now'
+      })
+    ]);
 
-      // Process and store tasks
-      const results = [];
-      for await (const task of tasks) {
-        const savedTask = await Task.findOneAndUpdate(
-          { asanaId: task.gid },
-          {
-            title: task.name,
-            description: task.notes,
-            status: task.completed ? 'completed' : 'active',
-            dueDate: task.due_on,
-            asanaId: task.gid,
-            userId
-          },
-          { upsert: true, new: true }
-        );
-        results.push(savedTask);
-      }
-
-      // Update last sync time
-      asanaSync.lastSync = new Date();
-      await asanaSync.save();
-
-      return { success: true, message: 'Tasks synchronized successfully', tasks: results };
-    } catch (error) {
-      console.error('Asana sync error:', error);
-      throw error;
-    }
+    res.json({
+      local: localTasks,
+      asana: asanaTasks.data
+    });
+  } catch (error) {
+    console.error('Get tasks error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
-}
+};
 
-module.exports = new AsanaController();
+// Complete a task
+const completeTask = async (req, res) => {
+  try {
+    const task = await Task.findOne({ 
+      _id: req.params.id, 
+      userId: req.user._id 
+    });
+    
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // Update local task
+    task.status = 'completed';
+    await task.save();
+
+    // Update Asana task if linked
+    if (task.asanaId) {
+      const asanaSync = await AsanaSync.findOne({ userId: req.user._id });
+      if (asanaSync) {
+        await client.tasks.update(task.asanaId, {
+          completed: true
+        });
+      }
+    }
+
+    res.json(task);
+  } catch (error) {
+    console.error('Complete task error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Handle Asana webhook
+const handleWebhook = async (req, res) => {
+  try {
+    const { events } = req.body;
+    
+    for (const event of events) {
+      if (event.type === 'task' && event.action === 'changed') {
+        await Task.findOneAndUpdate(
+          { asanaId: event.resource.gid },
+          { status: event.resource.completed ? 'completed' : 'active' }
+        );
+      }
+    }
+
+    res.status(200).json({ message: 'Webhook processed successfully' });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Connect Asana account
+const connectAsana = async (req, res) => {
+  try {
+    const { code } = req.body;
+    
+    // Exchange code for token
+    const tokenData = await client.app.accessTokenFromCode(code);
+    
+    // Get user info
+    client.useOauth({ credentials: tokenData });
+    const user = await client.users.me();
+    
+    // Get workspace
+    const workspaces = await client.workspaces.findAll();
+    const workspace = workspaces.data[0]; // Using first workspace
+    
+    // Save or update Asana connection
+    await AsanaSync.findOneAndUpdate(
+      { userId: req.user._id },
+      {
+        accessToken: tokenData.access_token,
+        asanaUserId: user.gid,
+        asanaWorkspaceId: workspace.gid
+      },
+      { upsert: true }
+    );
+    
+    res.json({ message: 'Asana connected successfully' });
+  } catch (error) {
+    console.error('Connect Asana error:', error);
+    res.status(500).json({ message: 'Failed to connect Asana' });
+  }
+};
+
+module.exports = {
+  getTasks,
+  completeTask,
+  handleWebhook,
+  connectAsana
+};

@@ -5,58 +5,25 @@ const taskSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  description: {
-    type: String,
-    default: ''
-  },
+  description: String,
   status: {
     type: String,
     enum: ['active', 'completed'],
     default: 'active'
   },
-  dueDate: {
-    type: Date
-  },
-  asanaId: {
-    type: String,
-    required: true,
-    unique: true
-  },
+  dueDate: Date,
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  assignees: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  }],
-  tags: [{
-    type: String
-  }],
-  priority: {
+  asanaId: {
     type: String,
-    enum: ['low', 'medium', 'high'],
-    default: 'medium'
-  },
-  completedAt: {
-    type: Date
-  },
-  section: {
-    type: String,
-    default: 'default'
-  },
-  project: {
-    type: String
+    unique: true,
+    sparse: true
   }
 }, {
   timestamps: true
 });
-
-// Indexe für häufige Abfragen
-taskSchema.index({ asanaId: 1 });
-taskSchema.index({ userId: 1 });
-taskSchema.index({ status: 1 });
-taskSchema.index({ dueDate: 1 });
 
 module.exports = mongoose.model('Task', taskSchema);
