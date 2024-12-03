@@ -5,22 +5,22 @@ const eventSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  description: String,
+  description: {
+    type: String,
+    required: true
+  },
   date: {
     type: Date,
     required: true
   },
   location: {
-    address: String,
-    coordinates: {
-      type: [Number], // [longitude, latitude]
-      index: '2dsphere'
-    }
+    type: String,
+    required: true
   },
   type: {
     type: String,
-    enum: ['canvassing', 'phonebank', 'rally', 'meeting', 'training', 'other'],
-    required: true
+    enum: ['door2door', 'infostand', 'meeting', 'other'],
+    default: 'other'
   },
   organizer: {
     type: mongoose.Schema.Types.ObjectId,
@@ -38,16 +38,21 @@ const eventSchema = new mongoose.Schema({
       default: 'confirmed'
     }
   }],
-  maxParticipants: Number,
+  maxParticipants: {
+    type: Number
+  },
   status: {
     type: String,
     enum: ['planned', 'ongoing', 'completed', 'cancelled'],
     default: 'planned'
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+  materials: [{
+    name: String,
+    quantity: Number,
+    assigned: Boolean
+  }]
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('Event', eventSchema);

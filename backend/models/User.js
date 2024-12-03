@@ -2,25 +2,32 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
+  },
   email: {
     type: String,
     required: true,
     unique: true,
-    trim: true,
-    lowercase: true
+    lowercase: true,
+    trim: true
   },
   password: {
     type: String,
     required: true
   },
-  name: {
-    type: String,
-    required: true
-  },
   role: {
     type: String,
-    enum: ['admin', 'volunteer'],
+    enum: ['volunteer', 'admin'],
     default: 'volunteer'
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  lastLogin: {
+    type: Date
   },
   points: {
     type: Number,
@@ -29,25 +36,37 @@ const userSchema = new mongoose.Schema({
   badges: [{
     type: String
   }],
-  phoneNumber: String,
-  district: String,
-  lastActive: Date,
-  createdAt: {
-    type: Date,
-    default: Date.now
+  completedTasks: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Task'
+  }],
+  preferences: {
+    notifications: {
+      email: {
+        type: Boolean,
+        default: true
+      },
+      push: {
+        type: Boolean,
+        default: true
+      }
+    },
+    language: {
+      type: String,
+      default: 'de'
+    }
   }
+}, {
+  timestamps: true
 });
 
-// Hash password before saving
+// Vor dem Speichern: Passwort hashen wenn es geändert wurde
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 10);
+  const user = this;
+  if (user.isModified('password')) {
+    user.password = await bcrypt.hash(user.password, 8);
+  }
   next();
 });
-
-// Compare password method
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
-};
 
 module.exports = mongoose.model('User', userSchema);

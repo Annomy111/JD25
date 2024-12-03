@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -16,7 +18,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = localStorage.getItem('token');
       if (token) {
-        const response = await axios.get('http://localhost:5000/api/auth/me', {
+        const response = await axios.get(`${API_URL}/api/auth/me`, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -34,7 +36,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       setError(null);
-      const response = await axios.post('http://localhost:5000/api/auth/register', userData);
+      const response = await axios.post(`${API_URL}/api/auth/register`, userData);
       const { token, user } = response.data;
       localStorage.setItem('token', token);
       setUser(user);
@@ -48,12 +50,14 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       setError(null);
-      const response = await axios.post('http://localhost:5000/api/auth/login', credentials);
+      console.log('Attempting login to:', `${API_URL}/api/auth/login`);
+      const response = await axios.post(`${API_URL}/api/auth/login`, credentials);
       const { token, user } = response.data;
       localStorage.setItem('token', token);
       setUser(user);
       return true;
     } catch (error) {
+      console.error('Login error:', error);
       setError(error.response?.data?.message || 'Login fehlgeschlagen');
       return false;
     }

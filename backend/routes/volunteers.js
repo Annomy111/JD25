@@ -1,26 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const { auth } = require('../middleware/auth');
-const User = require('../models/User');
+const auth = require('../middleware/auth');
+const volunteerController = require('../controllers/volunteerController');
 
-// Alle Freiwilligen abrufen (nur für Admins)
-router.get('/', auth, async (req, res) => {
-  try {
-    // Prüfen ob Admin
-    const requestingUser = await User.findById(req.user.userId);
-    if (requestingUser.role !== 'admin') {
-      return res.status(403).json({ message: 'Zugriff verweigert' });
-    }
+// Get all volunteers
+router.get('/', auth, volunteerController.getAllVolunteers);
 
-    const volunteers = await User.find({ role: 'volunteer' })
-      .select('-password')
-      .sort({ lastActive: -1 });
+// Get single volunteer
+router.get('/:id', auth, volunteerController.getVolunteerById);
 
-    res.json(volunteers);
-  } catch (error) {
-    console.error('Error fetching volunteers:', error);
-    res.status(500).json({ message: 'Fehler beim Abrufen der Freiwilligen' });
-  }
-});
+// Update volunteer
+router.put('/:id', auth, volunteerController.updateVolunteer);
+
+// Add points to volunteer
+router.post('/:id/points', auth, volunteerController.addPoints);
+
+// Add badge to volunteer
+router.post('/:id/badges', auth, volunteerController.addBadge);
 
 module.exports = router;

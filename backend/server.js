@@ -12,7 +12,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server, {
   cors: {
-    origin: ['https://campaign-manager-frontend-8c0m.onrender.com', 'http://localhost:3000'],
+    origin: ['https://campaign-manager-frontend-8c0m.onrender.com', 'http://localhost:3000', 'http://localhost:3001'],
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -21,24 +21,31 @@ const io = socketio(server, {
 // Online users tracking
 const onlineUsers = new Map();
 
+// CORS configuration
 app.use(cors({
-  origin: ['https://campaign-manager-frontend-8c0m.onrender.com', 'http://localhost:3000'],
+  origin: ['https://campaign-manager-frontend-8c0m.onrender.com', 'http://localhost:3000', 'http://localhost:3001'],
   credentials: true
 }));
+
 app.use(express.json());
 
+// Basic health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK' });
+});
+
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('Connected to MongoDB'))
-.catch((error) => console.error('MongoDB connection error:', error));
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch((error) => console.error('MongoDB connection error:', error));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/volunteers', require('./routes/volunteers'));
 app.use('/api/events', require('./routes/events'));
+app.use('/api/asana', require('./routes/asana'));
+app.use('/api/social-media', require('./routes/socialMedia'));
+app.use('/api/calendar', require('./routes/calendarRoutes'));
 
 // Socket Authentication Middleware
 io.use(async (socket, next) => {
@@ -77,78 +84,6 @@ io.on('connection', async (socket) => {
     name: u.user.name
   })));
 
-  // Join general room
-  socket.join('general');
-
-  // Send message history
-  try {
-    const messages = await Message.find({ room: 'general' })
-      .sort({ timestamp: -1 })
-      .limit(50)
-      .populate('sender', 'name')
-      .populate('readBy', 'name');
-    
-    socket.emit('message:history', messages.reverse());
-  } catch (error) {
-    console.error('Error loading message history:', error);
-  }
-
-  // Handle new messages
-  socket.on('message:send', async (data) => {
-    try {
-      const message = new Message({
-        sender: socket.user._id,
-        content: data.content,
-        room: 'general',
-        readBy: [socket.user._id]
-      });
-      
-      await message.save();
-      const populatedMessage = await Message.findById(message._id)
-        .populate('sender', 'name')
-        .populate('readBy', 'name');
-
-      io.to('general').emit('message:receive', populatedMessage);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      socket.emit('message:error', 'Failed to send message');
-    }
-  });
-
-  // Handle typing status
-  socket.on('typing:start', () => {
-    socket.to('general').emit('typing:update', {
-      userId: socket.user._id,
-      name: socket.user.name,
-      isTyping: true
-    });
-  });
-
-  socket.on('typing:stop', () => {
-    socket.to('general').emit('typing:update', {
-      userId: socket.user._id,
-      name: socket.user.name,
-      isTyping: false
-    });
-  });
-
-  // Handle message read status
-  socket.on('message:read', async ({ messageId }) => {
-    try {
-      const message = await Message.findById(messageId);
-      if (message && !message.readBy.includes(socket.user._id)) {
-        message.readBy.push(socket.user._id);
-        await message.save();
-        io.to('general').emit('message:updated', {
-          messageId,
-          readBy: message.readBy
-        });
-      }
-    } catch (error) {
-      console.error('Error updating read status:', error);
-    }
-  });
-
   // Handle disconnect
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.user.name);
@@ -160,7 +95,16 @@ io.on('connection', async (socket) => {
   });
 });
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something broke!' });
+});
+
+// Port configuration
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+
+// Start server
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });

@@ -1,105 +1,100 @@
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-exports.register = async (req, res) => {
+const register = async (req, res) => {
   try {
-    const { email, password, name, phone } = req.body;
+    const { name, email, password } = req.body;
 
-    // Prüfen, ob Benutzer bereits existiert
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ 
-        message: 'Diese E-Mail-Adresse wird bereits verwendet' 
-      });
+    // Check if user already exists
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Neuen Benutzer erstellen
-    const user = new User({
-      email,
-      password,
+    // Create new user
+    user = new User({
       name,
-      phone,
-      role: 'volunteer', // Standardmäßig als Freiwilliger
-      points: 0,
-      badges: [],
-      status: 'active',
-      lastActive: new Date(),
-      district: 'Nicht zugewiesen'
+      email,
+      password
     });
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
 
     await user.save();
 
-    // Token erstellen
+    // Create token
     const token = jwt.sign(
-      { userId: user._id, role: user.role },
+      { userId: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
 
     res.status(201).json({
-      message: 'Registrierung erfolgreich',
       token,
       user: {
         id: user._id,
-        email: user.email,
         name: user.name,
-        role: user.role
+        email: user.email
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: 'Registrierung fehlgeschlagen' });
+    console.error('Register error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-exports.login = async (req, res) => {
+const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ message: 'Ungültige Anmeldedaten' });
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const isMatch = await user.comparePassword(password);
+    // Validate password
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Ungültige Anmeldedaten' });
+      return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Aktualisiere lastActive
-    user.lastActive = new Date();
-    await user.save();
-
+    // Create token
     const token = jwt.sign(
-      { userId: user._id, role: user.role },
+      { userId: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
 
     res.json({
       token,
       user: {
         id: user._id,
-        email: user.email,
         name: user.name,
-        role: user.role
+        email: user.email
       }
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Anmeldung fehlgeschlagen' });
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-exports.getCurrentUser = async (req, res) => {
+const getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: 'Benutzer nicht gefunden' });
-    }
+    const user = await User.findById(req.user.id).select('-password');
     res.json(user);
   } catch (error) {
     console.error('Get current user error:', error);
-    res.status(500).json({ message: 'Fehler beim Abrufen der Benutzerdaten' });
+    res.status(500).json({ message: 'Server error' });
   }
+};
+
+module.exports = {
+  register,
+  login,
+  getCurrentUser
 };
